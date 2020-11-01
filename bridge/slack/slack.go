@@ -144,6 +144,9 @@ func (s *Slack) createSlackMsgOption(text string) []slack.MsgOption {
 	np.AsUser = true
 	// np.Username = u.User
 
+	var attachments []slack.Attachment
+	attachments = append(attachments, slack.Attachment{CallbackID: "matterircd_" + s.sinfo.User.ID})
+
 	var opts []slack.MsgOption
 	opts = append(opts,
 		slack.MsgOptionPostMessageParameters(np),
@@ -151,11 +154,16 @@ func (s *Slack) createSlackMsgOption(text string) []slack.MsgOption {
 		slack.MsgOptionText(text, false),
 
 		// add a callback ID so we can see we created it
-		slack.MsgOptionBlocks(slack.NewSectionBlock(
-			slack.NewTextBlockObject(slack.MarkdownType, text, false, false),
-			nil, nil,
-			slack.SectionBlockOptionBlockID("matterircd_"+s.sinfo.User.ID),
-		)),
+		// .. as attachment. Desktop Slack will render a slight empty space below message
+		slack.MsgOptionAttachments(attachments...),
+
+		// .. as a block. Desktop Slack will render text with max-width: 600px
+		// slack.MsgOptionBlocks(slack.NewSectionBlock(
+		// 	slack.NewTextBlockObject(slack.MarkdownType, text, false, false),
+		// 	nil, nil,
+		// 	slack.SectionBlockOptionBlockID("matterircd_"+s.sinfo.User.ID),
+		// )),
+
 	)
 
 	return opts
@@ -720,6 +728,13 @@ func (s *Slack) handleSlackActionPost(rmsg *slack.MessageEvent) {
 	if rmsg.SubMessage != nil && len(rmsg.SubMessage.Blocks.BlockSet) == 1 {
 		block, ok := rmsg.SubMessage.Blocks.BlockSet[0].(*slack.SectionBlock)
 		hasOurCallbackID = ok && block.BlockID == "matterircd_"+s.sinfo.User.ID
+	}
+
+	// handle legacy attachment style callback ID
+	if len(rmsg.Attachments) > 0 {
+		if rmsg.Attachments[0].CallbackID == "matterircd_"+s.sinfo.User.ID {
+			hasOurCallbackID = true
+		}
 	}
 
 	if hasOurCallbackID {
