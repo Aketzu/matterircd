@@ -179,23 +179,23 @@ func (s *Slack) MsgUser(username, text string) (string, error) {
 
 	opts := s.createSlackMsgOption(text)
 
-	_, _, err = s.sc.PostMessage(dchannel.ID, opts...)
+	_, msgID, err = s.sc.PostMessage(dchannel.ID, opts...)
 	if err != nil {
-		return "", err
+		return msgID, err
 	}
 
-	return "", nil
+	return msgID, nil
 }
 
 func (s *Slack) MsgChannel(channelID, text string) (string, error) {
 	opts := s.createSlackMsgOption(text)
 
-	_, _, err := s.sc.PostMessage(strings.ToUpper(channelID), opts...)
+	_, msgID, err := s.sc.PostMessage(strings.ToUpper(channelID), opts...)
 	if err != nil {
-		return "", err
+		return msgID, err
 	}
 
-	return "", nil
+	return msgID, nil
 }
 
 func (s *Slack) Topic(channelID string) string {
