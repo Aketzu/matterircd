@@ -26,6 +26,9 @@ type Slack struct {
 	onConnect    func()
 	sync.RWMutex
 	v *viper.Viper
+
+	msgLast      map[string]string
+	msgLastMutex sync.RWMutex
 }
 
 func New(v *viper.Viper, cred bridge.Credentials, eventChan chan *bridge.Event, onConnect func()) (bridge.Bridger, error) {
@@ -51,6 +54,8 @@ func New(v *viper.Viper, cred bridge.Credentials, eventChan chan *bridge.Event, 
 	if err != nil {
 		return nil, err
 	}
+
+	s.msgLast = make(map[string]string)
 
 	users, _ := s.sc.GetUsers()
 	for _, mmuser := range users {
@@ -181,10 +186,14 @@ func (s *Slack) MsgUser(username, text string) (string, error) {
 
 	opts := s.createSlackMsgOption(text)
 
-	_, msgID, err = s.sc.PostMessage(dchannel.ID, opts...)
+	_, msgID, err := s.sc.PostMessage(dchannel.ID, opts...)
 	if err != nil {
 		return msgID, err
 	}
+
+	s.msgLastMutex.Lock()
+    defer s.msgLastMutex.Unlock()
+	s.msgLast[dchannel.ID] = msgID
 
 	return msgID, nil
 }
@@ -196,6 +205,11 @@ func (s *Slack) MsgChannel(channelID, text string) (string, error) {
 	if err != nil {
 		return msgID, err
 	}
+	logger.Debugf("List pre %#v", s.msgLast)
+	s.msgLastMutex.Lock()
+    defer s.msgLastMutex.Unlock()
+	s.msgLast[strings.ToUpper(channelID)] = msgID
+	logger.Debugf("List post %#v", s.msgLast)
 
 	return msgID, nil
 }
@@ -731,6 +745,28 @@ func (s *Slack) handleSlackActionPost(rmsg *slack.MessageEvent) {
 		block, ok := rmsg.SubMessage.Blocks.BlockSet[0].(*slack.SectionBlock)
 		hasOurCallbackID = ok && block.BlockID == "matterircd_"+s.sinfo.User.ID
 	}
+
+	// Is this our own message
+	if rmsg.User == s.sinfo.User.ID {
+	  lastmsg := s.msgLast[rmsg.Channel]
+	  logger.Debugf("Lastmsg %#v", lastmsg)
+
+	  // Slack can be faster in sending new message than replying to POST
+	  if lastmsg < rmsg.Timestamp {
+		time.Sleep(100 * time.Millisecond)
+		lastmsg = s.msgLast[rmsg.Channel]
+		logger.Debugf("Lastmsg2 %#v", lastmsg)
+	  }
+	  logger.Debugf("ts %#v", rmsg.Timestamp)
+
+	  // Is this really the message we just sent
+	  if lastmsg == rmsg.Timestamp {
+		logger.Debugf("match")
+		hasOurCallbackID = true
+	  }
+	}
+
+
 
 	// handle legacy attachment style callback ID
 	if len(rmsg.Attachments) > 0 {

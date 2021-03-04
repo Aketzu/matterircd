@@ -233,9 +233,12 @@ func (api *Client) SendMessageContext(ctx context.Context, channelID string, opt
 		api.Debugf("Sending request: %s", string(reqBody))
 	}
 
+  api.Debugf("sending..")
 	if err = doPost(ctx, api.httpclient, req, parser(&response), api); err != nil {
+    api.Debugf("sente")
 		return "", "", "", err
 	}
+  api.Debugf("sent")
 
 	return response.Channel, response.getMessageTimestamp(), response.Text, response.Err()
 }
