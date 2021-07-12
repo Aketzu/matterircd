@@ -68,8 +68,9 @@ func (m *Mattermost) loginToMattermost(onWsConnect func()) (*matterclient.Client
 		mc.Credentials.NoTLS = true
 	}
 
-	// do anti idle on town-square, every installation should have this channel
 	mc.AntiIdle = !m.v.GetBool("mattermost.DisableAutoView") || m.v.GetBool("mattermost.ForceAntiIdle")
+	mc.AntiIdleChan = m.v.GetString("mattermost.AntiIdleChannel")
+	mc.AntiIdleIntvl = m.v.GetInt("mattermost.AntiIdleInterval")
 	mc.OnWsConnect = onWsConnect
 
 	if m.v.GetBool("debug") {
@@ -808,6 +809,12 @@ func (m *Mattermost) handleWsActionPost(rmsg *model.WebSocketEvent) {
 		}
 
 		return
+	}
+
+	if data.Type == "system_add_to_team" || data.Type == "system_remove_from_team" {
+		ghost = &bridge.UserInfo{
+			Nick: "system",
+		}
 	}
 
 	msgs := strings.Split(data.Message+replyMessage, "\n")
